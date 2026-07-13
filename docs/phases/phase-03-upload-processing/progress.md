@@ -1,7 +1,7 @@
 # phase-03-upload-processing — Progress
 
 **Status:** in_progress
-**SIs:** 1/7 completed
+**SIs:** 2/7 completed
 
 ### SI-03.1 — Infraestrutura: Docker Compose, config namespaces e variáveis de ambiente
 - **Status:** completed
@@ -11,9 +11,11 @@
   - Atualizei `env.validation.integration-spec.ts` (`requiredEnv`) para incluir os novos campos obrigatórios (MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, MINIO_BUCKET_NAME, REDIS_HOST) — sem isso os testes existentes de `validate({})` quebrariam.
 
 ### SI-03.2 — Entidade Video e Migração de banco
-- **Status:** pending
-- **Tests:** no tests
-- **Observations:** none
+- **Status:** completed
+- **Tests:** 7 passing (6 entity integration + 1 module compilation)
+- **Observations:**
+  - O banco de dev estava completamente vazio (migrações CreateUsersAndChannels e CreateAuthTokens nunca haviam sido aplicadas neste ambiente) — a primeira tentativa de `migration:generate` gerou um diff recriando todas as tabelas existentes. Rodei `migration:run` para aplicar as duas migrações pendentes primeiro, depois regenerei `CreateVideos` limpo (apenas a tabela `videos`).
+  - Atualizei `src/test/create-test-data-source.ts` (`cleanAllTables`) para incluir `DELETE FROM "videos"` antes de `channels` — sem isso, qualquer suíte de integração existente que usa esse helper quebraria por violação de FK assim que houver linhas em `videos` referenciando `channels`.
 
 ### SI-03.3 — Módulo de Storage (MinIO/S3)
 - **Status:** pending
