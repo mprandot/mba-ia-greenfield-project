@@ -8,7 +8,10 @@ describe('QueueModule', () => {
   it('should compile successfully', async () => {
     const module = await Test.createTestingModule({
       imports: [
-        ConfigModule.forRoot({ isGlobal: true, load: [appConfig, queueConfig] }),
+        ConfigModule.forRoot({
+          isGlobal: true,
+          load: [appConfig, queueConfig],
+        }),
         QueueModule,
       ],
     }).compile();

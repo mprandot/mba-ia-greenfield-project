@@ -127,9 +127,8 @@ export class StorageService {
         new HeadBucketCommand({ Bucket: this.config.bucketName }),
       );
     } catch (error) {
-      const statusCode = (
-        error as { $metadata?: { httpStatusCode?: number } }
-      ).$metadata?.httpStatusCode;
+      const statusCode = (error as { $metadata?: { httpStatusCode?: number } })
+        .$metadata?.httpStatusCode;
 
       if (statusCode !== 404) {
         throw error;

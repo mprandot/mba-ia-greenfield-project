@@ -8,7 +8,10 @@ describe('StorageModule', () => {
   it('should compile successfully', async () => {
     const module = await Test.createTestingModule({
       imports: [
-        ConfigModule.forRoot({ isGlobal: true, load: [appConfig, storageConfig] }),
+        ConfigModule.forRoot({
+          isGlobal: true,
+          load: [appConfig, storageConfig],
+        }),
         StorageModule,
       ],
     }).compile();

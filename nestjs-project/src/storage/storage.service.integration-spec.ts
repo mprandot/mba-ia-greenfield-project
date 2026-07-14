@@ -11,10 +11,7 @@ async function uploadSinglePartObject(
   key: string,
   body: string,
 ): Promise<void> {
-  const uploadId = await storageService.createMultipartUpload(
-    key,
-    'video/mp4',
-  );
+  const uploadId = await storageService.createMultipartUpload(key, 'video/mp4');
   const [{ uploadUrl }] = await storageService.generatePartPresignedUrls(
     key,
     uploadId,

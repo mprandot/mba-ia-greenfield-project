@@ -1,7 +1,7 @@
 # phase-03-upload-processing — Progress
 
 **Status:** in_progress
-**SIs:** 4/7 completed
+**SIs:** 5/7 completed
 
 ### SI-03.1 — Infraestrutura: Docker Compose, config namespaces e variáveis de ambiente
 - **Status:** completed
@@ -33,9 +33,15 @@
   - Teste de integração usa `queue.obliterate({ force: true })` em `beforeEach` para isolar jobs entre testes (fila real compartilhada no Redis do compose), e `queue.close()` em `afterAll` para não deixar conexão pendurada.
 
 ### SI-03.5 — Videos API: Criar rascunho e concluir upload
-- **Status:** pending
-- **Tests:** no tests
-- **Observations:** none
+- **Status:** completed
+- **Tests:** 58 passing (6 unit + 52 e2e — inclui toda a suíte de `auth.e2e-spec.ts`, que compartilha o helper `registerConfirmAndLogin` extraído nesta SI)
+- **Observations:**
+  - Divergência entre o plano e a convenção já estabelecida: os ACs e o spec (`videos.plan.md`) citam `body.errorCode`, mas a própria fonte citada pelo plano (`phase-02-auth/TD-07`) define o campo de resposta como `error` — que é o que o `DomainExceptionFilter` já implementado de fato usa (confirmado em todos os testes e2e existentes de auth). Implementei e testei com `error`, seguindo a convenção real e vinculante, não o texto do plano.
+  - Endpoints `POST /videos` e `POST /videos/:id/upload-complete` NÃO usam `@UseGuards(JwtAuthGuard)` como o texto do plano sugere — o projeto já registra `JwtAuthGuard` globalmente via `APP_GUARD` (ver `.claude/rules/nestjs-controllers.md`), então endpoints autenticados são o padrão e não precisam de decorator; só endpoints públicos usam `@Public()`.
+  - Adicionei `ChannelsService.findByUserId` (não existia) para o `VideosService` buscar o canal do usuário sem acessar a entidade `Channel` diretamente, preservando single responsibility.
+  - Extraí `registerConfirmAndLogin`/`captureConfirmationToken` de `test/auth.e2e-spec.ts` para `test/helpers/auth-e2e.helpers.ts` (parametrizado por `app`), conforme pedido explicitamente pelo spec de testes ("reuse the helper"); `auth.e2e-spec.ts` foi atualizado para delegar a essas funções, sem mudar nenhuma asserção existente.
+  - Descoberto débito de lint pré-existente e generalizado no projeto (~200 erros em arquivos já commitados de fases anteriores, principalmente `@typescript-eslint/unbound-method` em padrões `expect(mock.method)` e `no-unsafe-member-access` em `res.body` do supertest) — já existia antes desta SI (confirmado revertendo temporariamente as mudanças). Todo código novo desta SI (`videos.service.ts`, `videos.controller.ts`, DTOs, `videos.module.ts`) está limpo; os arquivos de teste novos seguem o mesmo padrão (não lint-clean) já usado em todo o projeto. Aberta task separada para o cleanup geral (fora do escopo desta SI).
+  - `npm run lint` com `--fix` reformatou cosmeticamente arquivos já commitados de SIs anteriores (migration de SI-03.2, specs de SI-03.3/03.4); a pedido do usuário, essa reformatação foi mantida (não revertida) e pode aparecer no diff desta SI.
 
 ### SI-03.6 — Worker: Processamento de Vídeos com FFmpeg
 - **Status:** pending
