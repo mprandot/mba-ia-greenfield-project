@@ -1,7 +1,7 @@
 # phase-03-upload-processing — Progress
 
 **Status:** in_progress
-**SIs:** 3/7 completed
+**SIs:** 4/7 completed
 
 ### SI-03.1 — Infraestrutura: Docker Compose, config namespaces e variáveis de ambiente
 - **Status:** completed
@@ -26,9 +26,11 @@
   - Os testes de integração criam alguns uploads multipart que nunca são completados (`test-key-create`, `test-key-parts` — usados só para validar forma do retorno, não fluxo completo), o que deixa multipart uploads incompletos no MinIO entre execuções de teste. Não há endpoint de abort/cleanup implementado nesta SI; se isso virar um problema de acúmulo, considerar um `AbortMultipartUploadCommand` de limpeza ou lifecycle policy no bucket — fora do escopo desta SI.
 
 ### SI-03.4 — Módulo de Fila (BullMQ + Redis)
-- **Status:** pending
-- **Tests:** no tests
-- **Observations:** none
+- **Status:** completed
+- **Tests:** 3 passing (1 module compilation + 2 integration against real Redis/BullMQ)
+- **Observations:**
+  - context7 MCP não disponível novamente; usei WebSearch para confirmar a API do `@nestjs/bullmq` (`BullModule.forRootAsync`/`registerQueue`, `@InjectQueue`, opts `attempts`/`backoff`) como alternativa.
+  - Teste de integração usa `queue.obliterate({ force: true })` em `beforeEach` para isolar jobs entre testes (fila real compartilhada no Redis do compose), e `queue.close()` em `afterAll` para não deixar conexão pendurada.
 
 ### SI-03.5 — Videos API: Criar rascunho e concluir upload
 - **Status:** pending
