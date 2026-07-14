@@ -1,7 +1,7 @@
 # phase-03-upload-processing — Progress
 
 **Status:** in_progress
-**SIs:** 2/7 completed
+**SIs:** 3/7 completed
 
 ### SI-03.1 — Infraestrutura: Docker Compose, config namespaces e variáveis de ambiente
 - **Status:** completed
@@ -18,9 +18,12 @@
   - Atualizei `src/test/create-test-data-source.ts` (`cleanAllTables`) para incluir `DELETE FROM "videos"` antes de `channels` — sem isso, qualquer suíte de integração existente que usa esse helper quebraria por violação de FK assim que houver linhas em `videos` referenciando `channels`.
 
 ### SI-03.3 — Módulo de Storage (MinIO/S3)
-- **Status:** pending
-- **Tests:** no tests
-- **Observations:** none
+- **Status:** completed
+- **Tests:** 7 passing (1 module compilation + 6 integration against real MinIO)
+- **Observations:**
+  - context7 MCP não estava disponível neste ambiente (server não conectado); usei WebFetch/WebSearch para validar a API do AWS SDK v3 (`@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner`) como alternativa, conforme exigido pela regra de "Library Documentation Lookup" do CLAUDE.md.
+  - `initializeBucket()` distingue erro 404 (bucket ausente, cria) de qualquer outro erro (relança), em vez de um `catch` genérico — evita mascarar falhas de rede/credenciais como "bucket ausente".
+  - Os testes de integração criam alguns uploads multipart que nunca são completados (`test-key-create`, `test-key-parts` — usados só para validar forma do retorno, não fluxo completo), o que deixa multipart uploads incompletos no MinIO entre execuções de teste. Não há endpoint de abort/cleanup implementado nesta SI; se isso virar um problema de acúmulo, considerar um `AbortMultipartUploadCommand` de limpeza ou lifecycle policy no bucket — fora do escopo desta SI.
 
 ### SI-03.4 — Módulo de Fila (BullMQ + Redis)
 - **Status:** pending
