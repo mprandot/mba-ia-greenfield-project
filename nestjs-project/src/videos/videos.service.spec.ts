@@ -65,6 +65,7 @@ describe('VideosService', () => {
             create: jest.fn(),
             save: jest.fn(),
             findOne: jest.fn(),
+            update: jest.fn(),
           },
         },
         {
@@ -176,7 +177,9 @@ describe('VideosService', () => {
     it('completes the upload, transitions to processing and publishes the job', async () => {
       const video = makeVideo();
       videoRepository.findOne.mockResolvedValue(video);
-      videoRepository.save.mockImplementation((v) => Promise.resolve(v as Video));
+      videoRepository.save.mockImplementation((v) =>
+        Promise.resolve(v as Video),
+      );
 
       await videosService.markUploadComplete('video-id', 'owner-user-id', dto);
 
@@ -192,6 +195,38 @@ describe('VideosService', () => {
         storageKey: video.storage_key,
         channelId: video.channel_id,
         slug: video.slug,
+      });
+    });
+  });
+
+  describe('markProcessingReady', () => {
+    it('updates status, duration, thumbnail_key and metadata', async () => {
+      videoRepository.update.mockResolvedValue({ affected: 1 } as any);
+
+      await videosService.markProcessingReady('video-id', {
+        duration_seconds: 120,
+        thumbnail_key: 'videos/abc12345def/thumbnail.jpg',
+        metadata: { codec: 'h264' },
+      });
+
+      expect(videoRepository.update).toHaveBeenCalledWith('video-id', {
+        status: VideoStatus.READY,
+        duration_seconds: 120,
+        thumbnail_key: 'videos/abc12345def/thumbnail.jpg',
+        metadata: { codec: 'h264' },
+      });
+    });
+  });
+
+  describe('markProcessingError', () => {
+    it('updates status to error with the given message', async () => {
+      videoRepository.update.mockResolvedValue({ affected: 1 } as any);
+
+      await videosService.markProcessingError('video-id', 'ffmpeg exploded');
+
+      expect(videoRepository.update).toHaveBeenCalledWith('video-id', {
+        status: VideoStatus.ERROR,
+        error_message: 'ffmpeg exploded',
       });
     });
   });

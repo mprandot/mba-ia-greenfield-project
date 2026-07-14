@@ -1,7 +1,7 @@
 # phase-03-upload-processing — Progress
 
 **Status:** in_progress
-**SIs:** 5/7 completed
+**SIs:** 6/7 completed
 
 ### SI-03.1 — Infraestrutura: Docker Compose, config namespaces e variáveis de ambiente
 - **Status:** completed
@@ -44,9 +44,16 @@
   - `npm run lint` com `--fix` reformatou cosmeticamente arquivos já commitados de SIs anteriores (migration de SI-03.2, specs de SI-03.3/03.4); a pedido do usuário, essa reformatação foi mantida (não revertida) e pode aparecer no diff desta SI.
 
 ### SI-03.6 — Worker: Processamento de Vídeos com FFmpeg
-- **Status:** pending
-- **Tests:** no tests
-- **Observations:** none
+- **Status:** completed
+- **Tests:** 19 passing (7 VideoProcessor unit + 1 WorkerModule compilation + 8 VideosService unit incl. os 2 novos métodos + 3 StorageService integration incl. `uploadObject`); AC de build/boot do worker verificado manualmente (`docker compose --profile worker build/up` — loga "Video worker ready to process jobs")
+- **Observations:**
+  - O texto do plano cita `@Processor(...)` com `@Process(JOBS.PROCESS_VIDEO)` — esse é o shape antigo do pacote `@nestjs/bull` (Bull). O pacote real instalado na SI-03.4 é `@nestjs/bullmq`, que não tem `@Process()`; o padrão correto é `@Processor(queueName)` na classe estendendo `WorkerHost` com um método `process(job)`. Implementado com o shape real (confirmado via busca), não o texto do plano.
+  - Extraí a lógica de ffmpeg/ffprobe para `src/worker/ffmpeg.util.ts` (funções `probeVideo`, `generateThumbnail`, `parseFrameRate`) em vez de chamar `fluent-ffmpeg` diretamente dentro do `VideoProcessor` — permite mockar no teste unitário via `jest.mock('../ffmpeg.util')` em vez de simular toda a API encadeável do fluent-ffmpeg (mock boundary mais limpo).
+  - Adicionei `StorageService.uploadObject` (PutObjectCommand simples) e `VideosService.markProcessingReady`/`markProcessingError` — não existiam nas SIs anteriores mas são exigidos pela ação técnica (d)/(e) desta SI; a escrita no Video passa por `VideosService`, não pelo repositório diretamente no worker, preservando single responsibility.
+  - Erro final (`status=error`) é decidido via `@OnWorkerEvent('failed')` checando `job.attemptsMade >= job.opts.attempts`, não um try/catch dentro de `process()` — deixa o BullMQ controlar o backoff/retry nativamente (per TD-01) e só persiste `error` quando as tentativas se esgotam.
+  - `Dockerfile.worker` usa `node:25.6.0-slim` + `apt-get install ffmpeg` em vez do `node:22-alpine` + `apk` sugerido no texto do plano — para ficar consistente com a versão de Node já fixada em `Dockerfile.dev` deste projeto (25.6.0), evitando divergência de versão entre containers sem necessidade.
+  - `compose.yaml`: o serviço `worker` depende de `db`/`minio`/`redis`, não de `nestjs-api` como o texto do plano sugere — `nestjs-api` roda `Dockerfile.dev` (só `tail -f /dev/null`; o servidor HTTP é iniciado manualmente via `docker compose exec`), então um healthcheck HTTP nele nunca passaria no fluxo normal de dev, e o worker não chama a API via HTTP mesmo. `worker` está sob `profiles: [worker]` para não subir no `docker compose up -d` padrão.
+  - Bug pego apenas no boot real do container (não no `videos.module.spec.ts`, que passa entidades explicitamente e mascara isso): `WorkerModule` precisou importar `UsersModule` além de `VideosModule`/`ChannelsModule`/`StorageModule`/`QueueModule` — sem isso, `autoLoadEntities: true` não registra a entidade `User`, e o TypeORM falha ao montar metadata da relação `Channel.user` no boot (`Entity metadata for Channel#user was not found`).
 
 ### SI-03.7 — Videos API: Endpoints de Recuperação (streaming e download)
 - **Status:** pending

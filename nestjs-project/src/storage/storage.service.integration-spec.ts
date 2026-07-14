@@ -139,4 +139,20 @@ describe('StorageService (integration)', () => {
 
     expect(response.status).toBe(200);
   });
+
+  it('uploadObject stores an object directly (single PUT, no multipart)', async () => {
+    const key = 'test-key-direct-upload';
+
+    await storageService.uploadObject(
+      key,
+      Buffer.from('direct-upload-payload'),
+      'image/jpeg',
+    );
+
+    const { url } = await storageService.generatePresignedGetUrl(key, 3600);
+    const response = await fetch(url);
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('direct-upload-payload');
+  });
 });

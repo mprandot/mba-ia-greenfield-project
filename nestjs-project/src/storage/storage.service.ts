@@ -6,6 +6,7 @@ import {
   CreateMultipartUploadCommand,
   GetObjectCommand,
   HeadBucketCommand,
+  PutObjectCommand,
   S3Client,
   UploadPartCommand,
   type CompletedPart,
@@ -119,6 +120,21 @@ export class StorageService {
     );
 
     return { url, expiresAt: new Date(Date.now() + expiresIn * 1000) };
+  }
+
+  async uploadObject(
+    key: string,
+    body: Buffer,
+    contentType: string,
+  ): Promise<void> {
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.config.bucketName,
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+      }),
+    );
   }
 
   async initializeBucket(): Promise<void> {

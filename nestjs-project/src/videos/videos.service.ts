@@ -123,4 +123,30 @@ export class VideosService {
       slug: video.slug,
     });
   }
+
+  async markProcessingReady(
+    videoId: string,
+    data: {
+      duration_seconds: number;
+      thumbnail_key: string;
+      metadata: Record<string, any>;
+    },
+  ): Promise<void> {
+    await this.videoRepository.update(videoId, {
+      status: VideoStatus.READY,
+      duration_seconds: data.duration_seconds,
+      thumbnail_key: data.thumbnail_key,
+      metadata: data.metadata,
+    });
+  }
+
+  async markProcessingError(
+    videoId: string,
+    errorMessage: string,
+  ): Promise<void> {
+    await this.videoRepository.update(videoId, {
+      status: VideoStatus.ERROR,
+      error_message: errorMessage,
+    });
+  }
 }
