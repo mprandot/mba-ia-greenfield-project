@@ -1,9 +1,9 @@
 ---
 kind: phase
-name: phase-03-upload-processing
+name: phase-03-videos
 sources_mtime:
   docs/project-plan.md: "2026-07-12T18:21:39Z"
-  docs/decisions/technical-decisions-upload-processing.md: "2026-07-12T19:54:34Z"
+  docs/decisions/technical-decisions-phase-03-videos.md: "2026-07-12T19:54:34Z"
   docs/decisions/technical-decisions-openapi-docs-nestjs.md: "2026-07-12T18:21:39Z"
   docs/phases/phase-01-configuracao-base/context.md: "2026-07-12T18:21:39Z"
   docs/phases/phase-02-auth/context.md: "2026-07-12T18:21:39Z"
@@ -11,7 +11,7 @@ sources_mtime:
   .claude/skills/testing-guide-nestjs-project/SKILL.md: "2026-07-12T18:21:38Z"
 ---
 
-# phase-03-upload-processing — Context
+# phase-03-videos — Context
 
 ## Scope
 
@@ -53,17 +53,17 @@ sources_mtime:
 
 | Ref | Source | Scope | Topic | Status | Decision | Libraries |
 |-----|--------|-------|-------|--------|----------|-----------|
-| phase-03-upload-processing/TD-01 | phase | Backend | Message Queue Technology | decided | A (BullMQ + Redis) | — |
-| phase-03-upload-processing/TD-02 | phase | Cross-layer | Upload Strategy for 10GB Files | decided | B (S3 Multipart pre-signed part URLs) | — |
-| phase-03-upload-processing/TD-03 | phase | Backend | Worker Architecture | decided | A (NestJS ApplicationContext) | — |
-| phase-03-upload-processing/TD-04 | phase | Cross-layer | Streaming and Download URL Strategy | decided | A (Pre-signed GET URL) | — |
-| phase-03-upload-processing/TD-05 | phase | Backend | Unique Video Slug | decided | C (crypto.randomBytes base64url) | — |
-| phase-03-upload-processing/TD-06 | phase | Backend | FFmpeg Integration in Worker | decided | A (fluent-ffmpeg) | — |
-| phase-03-upload-processing/TD-07 | phase | Backend | Object Storage SDK | decided | A (@aws-sdk/client-s3 + @aws-sdk/s3-request-presigner) | — |
+| phase-03-videos/TD-01 | phase | Backend | Message Queue Technology | decided | A (BullMQ + Redis) | — |
+| phase-03-videos/TD-02 | phase | Cross-layer | Upload Strategy for 10GB Files | decided | B (S3 Multipart pre-signed part URLs) | — |
+| phase-03-videos/TD-03 | phase | Backend | Worker Architecture | decided | A (NestJS ApplicationContext) | — |
+| phase-03-videos/TD-04 | phase | Cross-layer | Streaming and Download URL Strategy | decided | A (Pre-signed GET URL) | — |
+| phase-03-videos/TD-05 | phase | Backend | Unique Video Slug | decided | C (crypto.randomBytes base64url) | — |
+| phase-03-videos/TD-06 | phase | Backend | FFmpeg Integration in Worker | decided | A (fluent-ffmpeg) | — |
+| phase-03-videos/TD-07 | phase | Backend | Object Storage SDK | decided | A (@aws-sdk/client-s3 + @aws-sdk/s3-request-presigner) | — |
 
 _Source files:_
 
-- upload-processing — `docs/decisions/technical-decisions-upload-processing.md` (scope_type: phase, related_phases: [3])
+- upload-processing — `docs/decisions/technical-decisions-phase-03-videos.md` (scope_type: phase, related_phases: [3])
 
 ---
 
@@ -71,51 +71,51 @@ _Source files:_
 
 | Capability (from project-plan.md) | Covered by |
 |-----------------------------------|------------|
-| Serviço de armazenamento de arquivos (vídeos e thumbnails) | phase-03-upload-processing/TD-07 |
-| Serviço de processamento em segundo plano (filas) | phase-03-upload-processing/TD-01, phase-03-upload-processing/TD-03 |
-| Upload de vídeos com suporte a arquivos de até 10GB sem impacto na performance | phase-03-upload-processing/TD-02 |
-| Pré-cadastro automático do vídeo como rascunho ao iniciar o upload | phase-03-upload-processing/TD-02 |
-| Processamento automático do vídeo após upload (extração de duração e metadados) | phase-03-upload-processing/TD-03, phase-03-upload-processing/TD-06 |
-| Geração automática de thumbnail a partir de um frame do vídeo | phase-03-upload-processing/TD-06 |
-| URL única por vídeo, sem conflito com outros vídeos | phase-03-upload-processing/TD-05 |
-| Reprodução via streaming (sem necessidade de download completo) | phase-03-upload-processing/TD-04 |
-| Download do vídeo pelo usuário | phase-03-upload-processing/TD-04 |
+| Serviço de armazenamento de arquivos (vídeos e thumbnails) | phase-03-videos/TD-07 |
+| Serviço de processamento em segundo plano (filas) | phase-03-videos/TD-01, phase-03-videos/TD-03 |
+| Upload de vídeos com suporte a arquivos de até 10GB sem impacto na performance | phase-03-videos/TD-02 |
+| Pré-cadastro automático do vídeo como rascunho ao iniciar o upload | phase-03-videos/TD-02 |
+| Processamento automático do vídeo após upload (extração de duração e metadados) | phase-03-videos/TD-03, phase-03-videos/TD-06 |
+| Geração automática de thumbnail a partir de um frame do vídeo | phase-03-videos/TD-06 |
+| URL única por vídeo, sem conflito com outros vídeos | phase-03-videos/TD-05 |
+| Reprodução via streaming (sem necessidade de download completo) | phase-03-videos/TD-04 |
+| Download do vídeo pelo usuário | phase-03-videos/TD-04 |
 
 ---
 
 ## Decisions Detail
 
-### phase-03-upload-processing/TD-01
+### phase-03-videos/TD-01
 
 **Recommendation:** `@nestjs/bullmq` is the official, first-class NestJS queue solution. Redis is a minimal addition (single alpine container). The built-in retry/backoff is essential for video processing jobs that can fail due to transient FFmpeg or storage errors. Redis is also a natural fit for future needs (rate limiting, caching). RabbitMQ and SQS introduce disproportionate complexity for a single-consumer job queue.
 **Libraries:** —
 
-### phase-03-upload-processing/TD-02
+### phase-03-videos/TD-02
 
 **Recommendation:** The only option that satisfies both "no API performance impact" and "resumable in case of failure." MinIO supports the S3 multipart protocol natively. The added API complexity (uploadId + part ETags) is justified by the explicit project requirement for resumability.
 **Libraries:** —
 
-### phase-03-upload-processing/TD-03
+### phase-03-videos/TD-03
 
 **Recommendation:** Code reuse (TypeORM entities/repos, storage service, config namespaces) decisively outweighs the NestJS bootstrap cost. The worker runs continuously as a long-lived process, so cold start time is irrelevant. Code duplication would grow with each schema or config change. The team already knows NestJS patterns.
 **Libraries:** —
 
-### phase-03-upload-processing/TD-04
+### phase-03-videos/TD-04
 
 **Recommendation:** The C4 architecture diagram explicitly shows `frontend → storage` for streaming. MinIO implements HTTP 206 range requests natively. The API generates short-lived pre-signed URLs, keeping video traffic entirely out of the API server. This is the only scalable architecture for a video streaming platform.
 **Libraries:** —
 
-### phase-03-upload-processing/TD-05
+### phase-03-videos/TD-05
 
 **Recommendation:** Zero external dependencies, no ESM/CJS compatibility issues (a real concern given nanoid v4), and 64 bits of entropy is more than sufficient. The UUID option conflates primary key with public slug and produces unnecessarily long URLs. nanoid v3 is outdated; v4's ESM-only nature requires CJS workarounds in this project.
 **Libraries:** —
 
-### phase-03-upload-processing/TD-06
+### phase-03-videos/TD-06
 
 **Recommendation:** The URL-input support for `ffprobe` is the decisive factor: metadata can be extracted from a MinIO pre-signed URL without downloading the full 10GB video. The maintenance-mode status is not a concern for this scope (metadata extraction + thumbnail generation are stable, fully-exercised code paths). Pair with `@types/fluent-ffmpeg` for TypeScript types and `ffmpeg-static` for the binary in the worker container.
 **Libraries:** —
 
-### phase-03-upload-processing/TD-07
+### phase-03-videos/TD-07
 
 **Recommendation:** The project explicitly targets both MinIO (dev) and S3 (prod). The AWS SDK means zero code changes when deploying to production — only env vars change (`endpoint` is omitted; `forcePathStyle` is set to false). Adopting the MinIO SDK now would require an SDK migration at production deployment, which adds risk.
 **Libraries:** —

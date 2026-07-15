@@ -1,10 +1,10 @@
 ---
 kind: phase
-name: phase-03-upload-processing
+name: phase-03-videos
 test_specs_aware: true
 sources_mtime:
-  docs/phases/phase-03-upload-processing/context.md: "2026-07-12T20:19:48Z"
-  docs/decisions/technical-decisions-upload-processing.md: "2026-07-12T19:54:34Z"
+  docs/phases/phase-03-videos/context.md: "2026-07-12T20:19:48Z"
+  docs/decisions/technical-decisions-phase-03-videos.md: "2026-07-12T19:54:34Z"
   docs/decisions/technical-decisions-openapi-docs-nestjs.md: "2026-07-12T18:21:39Z"
   docs/phases/phase-01-configuracao-base/context.md: "2026-07-12T18:21:39Z"
   docs/phases/phase-02-auth/context.md: "2026-07-12T18:21:39Z"
@@ -80,12 +80,12 @@ Implementar o sistema completo de upload e processamento de vídeos do StreamTub
 
 ### SI-03.3 — Módulo de Storage (MinIO/S3)
 
-**Description:** Implementar `StorageService` com toda a lógica de multipart upload pré-assinado e geração de pre-signed GET URLs usando `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` (per `phase-03-upload-processing/TD-07`).
+**Description:** Implementar `StorageService` com toda a lógica de multipart upload pré-assinado e geração de pre-signed GET URLs usando `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` (per `phase-03-videos/TD-07`).
 
 **Technical actions:**
 
-1. Instalar `@aws-sdk/client-s3 @aws-sdk/s3-request-presigner` como dependências de produção (per `phase-03-upload-processing/TD-07`)
-2. Criar `nestjs-project/src/storage/storage.service.ts` injetando `storageConfig` via `@Inject(storageConfig.KEY)` — métodos: `createMultipartUpload(key, contentType)` → `string` (UploadId, via `CreateMultipartUploadCommand`); `generatePartPresignedUrls(key, uploadId, partCount)` → `{partNumber, uploadUrl}[]` (via `UploadPartCommand` + `getSignedUrl`); `completeMultipartUpload(key, uploadId, parts)` → `void` (via `CompleteMultipartUploadCommand`); `generatePresignedGetUrl(key, expiresIn, responseContentDisposition?)` → `{url, expiresAt}` (via `GetObjectCommand` + `getSignedUrl`); `initializeBucket()` → `void` (via `HeadBucketCommand` + `CreateBucketCommand`) (per `phase-03-upload-processing/TD-07`)
+1. Instalar `@aws-sdk/client-s3 @aws-sdk/s3-request-presigner` como dependências de produção (per `phase-03-videos/TD-07`)
+2. Criar `nestjs-project/src/storage/storage.service.ts` injetando `storageConfig` via `@Inject(storageConfig.KEY)` — métodos: `createMultipartUpload(key, contentType)` → `string` (UploadId, via `CreateMultipartUploadCommand`); `generatePartPresignedUrls(key, uploadId, partCount)` → `{partNumber, uploadUrl}[]` (via `UploadPartCommand` + `getSignedUrl`); `completeMultipartUpload(key, uploadId, parts)` → `void` (via `CompleteMultipartUploadCommand`); `generatePresignedGetUrl(key, expiresIn, responseContentDisposition?)` → `{url, expiresAt}` (via `GetObjectCommand` + `getSignedUrl`); `initializeBucket()` → `void` (via `HeadBucketCommand` + `CreateBucketCommand`) (per `phase-03-videos/TD-07`)
 3. Criar `nestjs-project/src/storage/storage.module.ts` — imports `ConfigModule`; providers/exports `StorageService`; implementar `OnApplicationBootstrap` para chamar `storageService.initializeBucket()` no startup
 4. Registrar `StorageModule` em `AppModule` e adicionar `storage.config.ts` ao `load` do `ConfigModule` (per `phase-01-configuracao-base/TD-03`)
 5. Injetar `storageConfig.KEY` em `StorageService` via `@Inject(storageConfig.KEY)` e tipar como `ConfigType<typeof storageConfig>` (per `phase-01-configuracao-base/TD-03`)
@@ -112,13 +112,13 @@ Implementar o sistema completo de upload e processamento de vídeos do StreamTub
 
 ### SI-03.4 — Módulo de Fila (BullMQ + Redis)
 
-**Description:** Implementar o módulo de fila usando `@nestjs/bullmq` + `bullmq` (per `phase-03-upload-processing/TD-01`) com `VideoQueueService` para publicar jobs `process-video` na fila `video-processing`.
+**Description:** Implementar o módulo de fila usando `@nestjs/bullmq` + `bullmq` (per `phase-03-videos/TD-01`) com `VideoQueueService` para publicar jobs `process-video` na fila `video-processing`.
 
 **Technical actions:**
 
-1. Instalar `@nestjs/bullmq bullmq` como dependências de produção (per `phase-03-upload-processing/TD-01`)
+1. Instalar `@nestjs/bullmq bullmq` como dependências de produção (per `phase-03-videos/TD-01`)
 2. Criar `nestjs-project/src/queue/queue.constants.ts` — `export const QUEUES = { VIDEO_PROCESSING: 'video-processing' } as const` e `export const JOBS = { PROCESS_VIDEO: 'process-video' } as const` (per Events/Messages spec)
-3. Criar `nestjs-project/src/queue/video-queue.service.ts` — interface `ProcessVideoPayload { videoId: string; storageKey: string; channelId: string; slug: string }`; método `publishProcessingJob(payload: ProcessVideoPayload): Promise<void>` que adiciona job `JOBS.PROCESS_VIDEO` à fila `QUEUES.VIDEO_PROCESSING` com `{ attempts: 3, backoff: { type: 'exponential', delay: 5000 } }` (per `phase-03-upload-processing/TD-01` e Events/Messages spec)
+3. Criar `nestjs-project/src/queue/video-queue.service.ts` — interface `ProcessVideoPayload { videoId: string; storageKey: string; channelId: string; slug: string }`; método `publishProcessingJob(payload: ProcessVideoPayload): Promise<void>` que adiciona job `JOBS.PROCESS_VIDEO` à fila `QUEUES.VIDEO_PROCESSING` com `{ attempts: 3, backoff: { type: 'exponential', delay: 5000 } }` (per `phase-03-videos/TD-01` e Events/Messages spec)
 4. Criar `nestjs-project/src/queue/queue.module.ts` — `BullModule.forRootAsync({ inject: [queueConfig.KEY], useFactory: (cfg: ConfigType<typeof queueConfig>) => ({ connection: { host: cfg.host, port: cfg.port } }) })`; `BullModule.registerQueue({ name: QUEUES.VIDEO_PROCESSING })`; providers e exports `VideoQueueService` (per `phase-01-configuracao-base/TD-03`)
 5. Registrar `QueueModule` em `AppModule` e adicionar `queue.config.ts` ao `load` do `ConfigModule`
 
@@ -126,7 +126,7 @@ Implementar o sistema completo de upload e processamento de vídeos do StreamTub
 
 | Artifact | Layer | Test file |
 |----------|-------|-----------|
-| `VideoQueueService` | Integration: real BullMQ + Redis — `publishProcessingJob` adiciona job à fila com nome `process-video` e payload correto (per `phase-03-upload-processing/TD-01` — não mockar internals BullMQ) | `nestjs-project/src/queue/video-queue.service.integration-spec.ts` |
+| `VideoQueueService` | Integration: real BullMQ + Redis — `publishProcessingJob` adiciona job à fila com nome `process-video` e payload correto (per `phase-03-videos/TD-01` — não mockar internals BullMQ) | `nestjs-project/src/queue/video-queue.service.integration-spec.ts` |
 | `QueueModule` | Unit: compilation test via `Test.createTestingModule({ imports: [QueueModule] }).compile()` | `nestjs-project/src/queue/queue.module.spec.ts` |
 
 **Dependencies:** SI-03.1 (config namespace `queue.config.ts`, serviço `redis` no compose.yaml)
@@ -142,7 +142,7 @@ Implementar o sistema completo de upload e processamento de vídeos do StreamTub
 
 ### SI-03.5 — Videos API: Criar rascunho e concluir upload
 
-**Description:** Implementar `POST /videos` (cria rascunho e inicia multipart upload pré-assinado) e `POST /videos/:id/upload-complete` (finaliza upload e dispara processamento) per Tech Specs (per `phase-03-upload-processing/TD-02`, `TD-05`).
+**Description:** Implementar `POST /videos` (cria rascunho e inicia multipart upload pré-assinado) e `POST /videos/:id/upload-complete` (finaliza upload e dispara processamento) per Tech Specs (per `phase-03-videos/TD-02`, `TD-05`).
 
 **Route:** POST /videos
 **Test Specs:** see `nestjs-project/specs/videos.plan.md`
@@ -151,7 +151,7 @@ Implementar o sistema completo de upload e processamento de vídeos do StreamTub
 **Technical actions:**
 
 1. Criar `nestjs-project/src/videos/dto/create-video.dto.ts` (title: string required max 255; file_name: string required; file_size: number int required 1–10_737_418_240; content_type: string optional default `'video/mp4'`) e `nestjs-project/src/videos/dto/upload-complete.dto.ts` (parts: array de `{part_number: number, etag: string}`, min 1 elemento)
-2. Criar `nestjs-project/src/videos/videos.service.ts` — `createDraft(userId: string, dto: CreateVideoDto)`: busca canal via `ChannelsRepository` (ou `ChannelsService`) por `user_id`; lança `ChannelRequiredException` se não encontrado; gera `slug = crypto.randomBytes(8).toString('base64url')` (per `phase-03-upload-processing/TD-05`); `storage_key = videos/${slug}/original`; calcula `partCount = Math.ceil(dto.file_size / PART_SIZE)` onde `PART_SIZE = 100_000_000` (100 MB); chama `StorageService.createMultipartUpload` e `generatePartPresignedUrls`; salva Video com `status = DRAFT` e `upload_id`; retorna `{id, slug, storage_key, parts, part_size: PART_SIZE}`
+2. Criar `nestjs-project/src/videos/videos.service.ts` — `createDraft(userId: string, dto: CreateVideoDto)`: busca canal via `ChannelsRepository` (ou `ChannelsService`) por `user_id`; lança `ChannelRequiredException` se não encontrado; gera `slug = crypto.randomBytes(8).toString('base64url')` (per `phase-03-videos/TD-05`); `storage_key = videos/${slug}/original`; calcula `partCount = Math.ceil(dto.file_size / PART_SIZE)` onde `PART_SIZE = 100_000_000` (100 MB); chama `StorageService.createMultipartUpload` e `generatePartPresignedUrls`; salva Video com `status = DRAFT` e `upload_id`; retorna `{id, slug, storage_key, parts, part_size: PART_SIZE}`
 3. Adicionar `markUploadComplete(videoId: string, userId: string, dto: UploadCompleteDto)` ao `VideosService`: carrega Video com relação Channel; lança `VideoNotFoundException` se ausente; lança `VideoAccessDeniedException` se `video.channel.user_id !== userId`; lança `VideoInvalidStatusException` se `video.status !== DRAFT`; chama `StorageService.completeMultipartUpload(storage_key, upload_id, parts)`; atualiza `status = PROCESSING`, `upload_id = null`; publica job via `VideoQueueService.publishProcessingJob({videoId, storageKey, channelId, slug})`
 4. Criar `nestjs-project/src/videos/videos.controller.ts` — `POST /videos` retorna 201 com corpo da resposta de `createDraft`; `POST /videos/:id/upload-complete` retorna 204; ambos com `@UseGuards(JwtAuthGuard)`; extrai `user.id` do request via `@Request()` (per `phase-02-auth/TD-06`)
 5. Atualizar `nestjs-project/src/videos/videos.module.ts` — imports: `TypeOrmModule.forFeature([Video])`, `ChannelsModule`, `StorageModule`, `QueueModule`; providers: `VideosService`; exports: `VideosService`
@@ -179,14 +179,14 @@ Implementar o sistema completo de upload e processamento de vídeos do StreamTub
 
 ### SI-03.6 — Worker: Processamento de Vídeos com FFmpeg
 
-**Description:** Implementar o worker NestJS ApplicationContext (per `phase-03-upload-processing/TD-03`) com `VideoProcessor` usando `fluent-ffmpeg` (per `phase-03-upload-processing/TD-06`) para extrair metadados, duração e gerar thumbnail diretamente a partir de pre-signed URL do MinIO — sem download do arquivo completo.
+**Description:** Implementar o worker NestJS ApplicationContext (per `phase-03-videos/TD-03`) com `VideoProcessor` usando `fluent-ffmpeg` (per `phase-03-videos/TD-06`) para extrair metadados, duração e gerar thumbnail diretamente a partir de pre-signed URL do MinIO — sem download do arquivo completo.
 
 **Technical actions:**
 
-1. Instalar `fluent-ffmpeg @types/fluent-ffmpeg ffmpeg-static @ffprobe-installer/ffprobe` como dependências de produção (per `phase-03-upload-processing/TD-06`); criar `Dockerfile.worker` baseado em `node:22-alpine` com `apk add --no-cache ffmpeg` para FFmpeg nativo no sistema
-2. Criar `nestjs-project/src/worker/processors/video.processor.ts` — `@Processor(QUEUES.VIDEO_PROCESSING)` com `@Process(JOBS.PROCESS_VIDEO)`: (a) gera pre-signed URL do vídeo via `StorageService.generatePresignedGetUrl(storageKey, 3600)`; (b) extrai `duration` e `metadata` (codec, resolution, bitrate, fps) via `ffprobe(presignedUrl)` sem download do arquivo completo (per `phase-03-upload-processing/TD-06`); (c) gera thumbnail a ~50% da duração via `fluent-ffmpeg(presignedUrl).screenshots({...})`; (d) faz upload do thumbnail via `StorageService`; (e) atualiza Video: `status = READY`, `duration_seconds`, `metadata`, `thumbnail_key`; em falha na tentativa final: `status = ERROR`, `error_message` (per `phase-03-upload-processing/TD-01`)
+1. Instalar `fluent-ffmpeg @types/fluent-ffmpeg ffmpeg-static @ffprobe-installer/ffprobe` como dependências de produção (per `phase-03-videos/TD-06`); criar `Dockerfile.worker` baseado em `node:22-alpine` com `apk add --no-cache ffmpeg` para FFmpeg nativo no sistema
+2. Criar `nestjs-project/src/worker/processors/video.processor.ts` — `@Processor(QUEUES.VIDEO_PROCESSING)` com `@Process(JOBS.PROCESS_VIDEO)`: (a) gera pre-signed URL do vídeo via `StorageService.generatePresignedGetUrl(storageKey, 3600)`; (b) extrai `duration` e `metadata` (codec, resolution, bitrate, fps) via `ffprobe(presignedUrl)` sem download do arquivo completo (per `phase-03-videos/TD-06`); (c) gera thumbnail a ~50% da duração via `fluent-ffmpeg(presignedUrl).screenshots({...})`; (d) faz upload do thumbnail via `StorageService`; (e) atualiza Video: `status = READY`, `duration_seconds`, `metadata`, `thumbnail_key`; em falha na tentativa final: `status = ERROR`, `error_message` (per `phase-03-videos/TD-01`)
 3. Criar `nestjs-project/src/worker/worker.module.ts` — imports: `ConfigModule.forRoot({ load: [dbConfig, storageConfig, queueConfig] })`, `TypeOrmModule.forRootAsync(...)`, `StorageModule`, `QueueModule` (com `BullModule.registerQueue`), `VideosModule`; providers: `VideoProcessor`
-4. Criar `nestjs-project/src/worker/main.ts` — `NestFactory.createApplicationContext(WorkerModule)` (per `phase-03-upload-processing/TD-03`); `app.enableShutdownHooks()` para graceful shutdown via SIGTERM
+4. Criar `nestjs-project/src/worker/main.ts` — `NestFactory.createApplicationContext(WorkerModule)` (per `phase-03-videos/TD-03`); `app.enableShutdownHooks()` para graceful shutdown via SIGTERM
 5. Adicionar serviço `worker` ao `nestjs-project/compose.yaml` — build de `Dockerfile.worker`, depends_on: nestjs-api (healthcheck), minio, redis, db; env_file: `.env`; comando: `node dist/worker/main.js`; profile: `worker` para não iniciar em `docker compose up -d` padrão
 
 **Tests:**
@@ -210,7 +210,7 @@ Implementar o sistema completo de upload e processamento de vídeos do StreamTub
 
 ### SI-03.7 — Videos API: Endpoints de Recuperação (streaming e download)
 
-**Description:** Implementar `GET /videos/:slug`, `GET /videos/:slug/stream-url` e `GET /videos/:slug/download-url` per Tech Specs (per `phase-03-upload-processing/TD-04`).
+**Description:** Implementar `GET /videos/:slug`, `GET /videos/:slug/stream-url` e `GET /videos/:slug/download-url` per Tech Specs (per `phase-03-videos/TD-04`).
 
 **Route:** GET /videos/:slug
 **Test Specs:** see `nestjs-project/specs/videos.plan.md`
@@ -219,8 +219,8 @@ Implementar o sistema completo de upload e processamento de vídeos do StreamTub
 **Technical actions:**
 
 1. Adicionar `findBySlug(slug: string): Promise<Video>` ao `VideosService` — busca Video por slug com relação Channel; lança `VideoNotFoundException` se ausente
-2. Adicionar `getStreamUrl(slug: string): Promise<{url: string, expiresAt: string}>` ao `VideosService` — chama `findBySlug`, valida `status === READY` (lança `VideoNotReadyException`); chama `StorageService.generatePresignedGetUrl(video.storage_key, 3600)`; retorna `{url, expiresAt}` (per `phase-03-upload-processing/TD-04` — HTTP 206 range requests tratados nativamente pelo MinIO/S3)
-3. Adicionar `getDownloadUrl(slug: string): Promise<{url: string, expiresAt: string}>` ao `VideosService` — mesma validação; chama `StorageService.generatePresignedGetUrl(video.storage_key, 300, 'attachment; filename="${video.title}"')` (per `phase-03-upload-processing/TD-04`)
+2. Adicionar `getStreamUrl(slug: string): Promise<{url: string, expiresAt: string}>` ao `VideosService` — chama `findBySlug`, valida `status === READY` (lança `VideoNotReadyException`); chama `StorageService.generatePresignedGetUrl(video.storage_key, 3600)`; retorna `{url, expiresAt}` (per `phase-03-videos/TD-04` — HTTP 206 range requests tratados nativamente pelo MinIO/S3)
+3. Adicionar `getDownloadUrl(slug: string): Promise<{url: string, expiresAt: string}>` ao `VideosService` — mesma validação; chama `StorageService.generatePresignedGetUrl(video.storage_key, 300, 'attachment; filename="${video.title}"')` (per `phase-03-videos/TD-04`)
 4. Adicionar ao `videos.controller.ts`: `GET /videos/:slug` (público — sem guard); `GET /videos/:slug/stream-url` (público); `GET /videos/:slug/download-url` (`@UseGuards(JwtAuthGuard)`); `GET /videos/:slug` retorna o Video com `thumbnail_url` (null ou pre-signed URL de 3600s gerada inline quando `thumbnail_key` não é null)
 5. Registrar `VideoNotFoundException` e `VideoNotReadyException` como domain exceptions no exception filter existente (per `phase-02-auth/TD-07` — padrão de domain exceptions com `errorCode` no response body)
 
@@ -399,11 +399,11 @@ Implementar o sistema completo de upload e processamento de vídeos do StreamTub
 }
 ```
 
-**Producer:** `VideoQueueService.publishProcessingJob()` (per `phase-03-upload-processing/TD-01`)
-**Consumer:** `VideoProcessor` no processo worker (per `phase-03-upload-processing/TD-01`, `TD-03`, `TD-06`)
-**Queue:** `video-processing` (BullMQ + Redis — per `phase-03-upload-processing/TD-01`)
+**Producer:** `VideoQueueService.publishProcessingJob()` (per `phase-03-videos/TD-01`)
+**Consumer:** `VideoProcessor` no processo worker (per `phase-03-videos/TD-01`, `TD-03`, `TD-06`)
+**Queue:** `video-processing` (BullMQ + Redis — per `phase-03-videos/TD-01`)
 **Trigger:** chamado por `VideosService.markUploadComplete()` após `CompleteMultipartUpload` bem-sucedido — video status muda de `draft` → `processing`
-**Delivery semantics:** at-least-once (per `phase-03-upload-processing/TD-01` — BullMQ padrão)
+**Delivery semantics:** at-least-once (per `phase-03-videos/TD-01` — BullMQ padrão)
 **Retry policy:** `maxAttempts: 3`; backoff exponencial iniciando em 5 000 ms; na terceira falha o worker grava `status: error` + `error_message` e não re-tenta
 
 ---
