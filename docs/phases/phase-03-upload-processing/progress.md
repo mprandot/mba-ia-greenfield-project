@@ -1,7 +1,7 @@
 # phase-03-upload-processing — Progress
 
 **Status:** in_progress
-**SIs:** 6/7 completed
+**SIs:** 7/7 completed
 
 ### SI-03.1 — Infraestrutura: Docker Compose, config namespaces e variáveis de ambiente
 - **Status:** completed
@@ -56,6 +56,11 @@
   - Bug pego apenas no boot real do container (não no `videos.module.spec.ts`, que passa entidades explicitamente e mascara isso): `WorkerModule` precisou importar `UsersModule` além de `VideosModule`/`ChannelsModule`/`StorageModule`/`QueueModule` — sem isso, `autoLoadEntities: true` não registra a entidade `User`, e o TypeORM falha ao montar metadata da relação `Channel.user` no boot (`Entity metadata for Channel#user was not found`).
 
 ### SI-03.7 — Videos API: Endpoints de Recuperação (streaming e download)
-- **Status:** pending
-- **Tests:** no tests
-- **Observations:** none
+- **Status:** completed
+- **Tests:** 74 passing (16 unit VideosService — inclui `findBySlug`/`getVideoDetails`/`getStreamUrl`/`getDownloadUrl` — + 58 e2e, unindo `videos.e2e-spec.ts` seção 2 com toda a suíte `auth.e2e-spec.ts`)
+- **Observations:**
+  - Mesma divergência das SIs anteriores: ACs/spec citam `errorCode`, mas a convenção real (já implementada, `DomainExceptionFilter`) usa o campo `error`. Testes e2e usam `body.error`.
+  - `GET /videos/:slug/download-url` não usa `@UseGuards(JwtAuthGuard)` como o texto do plano sugere — segue a mesma convenção de guard global já estabelecida na SI-03.5 (`@Public()` só nos endpoints públicos: `:slug` e `:slug/stream-url`).
+  - Adicionei `VideosService.getVideoDetails(slug)` (não citado explicitamente pelo plano, que atribui a montagem do `thumbnail_url` à ação técnica do controller) para manter a chamada ao `StorageService` (geração de URL pré-assinada da thumbnail) dentro do service, não do controller — preserva a regra de "controllers finos / lógica de negócio no service" já documentada no projeto.
+  - Bug real pego só ao rodar a suíte completa: `test/videos.e2e-spec.ts` registra ~11 usuários ao longo do arquivo (3 requisições de auth cada — register/confirm/login) sem nunca limpar o `ThrottlerStorage` entre testes; por volta do 10º-11º request de auth dentro da janela de 60s, o `ThrottlerGuard` global começa a devolver 429, fazendo os últimos testes (`download-url`) falharem com "User não encontrado" (o registro silenciosamente não criava o usuário). Corrigido injetando `ThrottlerStorageService` e chamando `throttlerStorage.storage.clear()` no `beforeEach`, no mesmo padrão já usado em `auth.e2e-spec.ts`.
+  - Slugs de teste hardcoded (`varchar(11)`) precisaram ser ajustados para exatamente 11 caracteres (`notreadyslg`, `downloadslg`) — dois valores iniciais excediam o limite da coluna.

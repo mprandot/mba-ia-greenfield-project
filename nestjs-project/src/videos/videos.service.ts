@@ -9,6 +9,7 @@ import {
   VideoAccessDeniedException,
   VideoInvalidStatusException,
   VideoNotFoundException,
+  VideoNotReadyException,
 } from '../common/exceptions/domain.exception';
 import { StorageService } from '../storage/storage.service';
 import { VideoQueueService } from '../queue/video-queue.service';
@@ -26,6 +27,27 @@ export interface CreateDraftResult {
   parts: { part_number: number; upload_url: string }[];
   part_size: number;
 }
+
+export interface PresignedUrlResult {
+  url: string;
+  expires_at: string;
+}
+
+export interface VideoDetails {
+  id: string;
+  slug: string;
+  title: string;
+  status: VideoStatus;
+  channel_id: string;
+  duration_seconds: number | null;
+  thumbnail_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+const STREAM_URL_TTL_SECONDS = 3600;
+const DOWNLOAD_URL_TTL_SECONDS = 300;
+const THUMBNAIL_URL_TTL_SECONDS = 3600;
 
 @Injectable()
 export class VideosService {
@@ -148,5 +170,72 @@ export class VideosService {
       status: VideoStatus.ERROR,
       error_message: errorMessage,
     });
+  }
+
+  async findBySlug(slug: string): Promise<Video> {
+    const video = await this.videoRepository.findOne({
+      where: { slug },
+      relations: ['channel'],
+    });
+    if (!video) {
+      throw new VideoNotFoundException();
+    }
+    return video;
+  }
+
+  async getVideoDetails(slug: string): Promise<VideoDetails> {
+    const video = await this.findBySlug(slug);
+
+    const thumbnailUrl = video.thumbnail_key
+      ? (
+          await this.storageService.generatePresignedGetUrl(
+            video.thumbnail_key,
+            THUMBNAIL_URL_TTL_SECONDS,
+          )
+        ).url
+      : null;
+
+    return {
+      id: video.id,
+      slug: video.slug,
+      title: video.title,
+      status: video.status,
+      channel_id: video.channel_id,
+      duration_seconds: video.duration_seconds,
+      thumbnail_url: thumbnailUrl,
+      created_at: video.created_at.toISOString(),
+      updated_at: video.updated_at.toISOString(),
+    };
+  }
+
+  async getStreamUrl(slug: string): Promise<PresignedUrlResult> {
+    const video = await this.findBySlug(slug);
+    if (video.status !== VideoStatus.READY) {
+      throw new VideoNotReadyException();
+    }
+
+    const { url, expiresAt } =
+      await this.storageService.generatePresignedGetUrl(
+        video.storage_key,
+        STREAM_URL_TTL_SECONDS,
+      );
+
+    return { url, expires_at: expiresAt.toISOString() };
+  }
+
+  async getDownloadUrl(slug: string): Promise<PresignedUrlResult> {
+    const video = await this.findBySlug(slug);
+    if (video.status !== VideoStatus.READY) {
+      throw new VideoNotReadyException();
+    }
+
+    const { url, expiresAt } =
+      await this.storageService.generatePresignedGetUrl(
+        video.storage_key,
+        DOWNLOAD_URL_TTL_SECONDS,
+        `attachment; filename="${video.title}"`,
+      );
+
+    return { url, expires_at: expiresAt.toISOString() };
   }
 }

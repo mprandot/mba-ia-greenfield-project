@@ -6,6 +6,7 @@ import {
   VideoAccessDeniedException,
   VideoInvalidStatusException,
   VideoNotFoundException,
+  VideoNotReadyException,
 } from '../common/exceptions/domain.exception';
 import { ChannelsService } from '../channels/channels.service';
 import { Channel } from '../channels/entities/channel.entity';
@@ -78,6 +79,7 @@ describe('VideosService', () => {
             createMultipartUpload: jest.fn(),
             generatePartPresignedUrls: jest.fn(),
             completeMultipartUpload: jest.fn(),
+            generatePresignedGetUrl: jest.fn(),
           },
         },
         {
@@ -228,6 +230,131 @@ describe('VideosService', () => {
         status: VideoStatus.ERROR,
         error_message: 'ffmpeg exploded',
       });
+    });
+  });
+
+  describe('findBySlug', () => {
+    it('returns the video when it exists', async () => {
+      const video = makeVideo();
+      videoRepository.findOne.mockResolvedValue(video);
+
+      const result = await videosService.findBySlug('abc12345def');
+
+      expect(result).toBe(video);
+      expect(videoRepository.findOne).toHaveBeenCalledWith({
+        where: { slug: 'abc12345def' },
+        relations: ['channel'],
+      });
+    });
+
+    it('throws VideoNotFoundException when the video does not exist', async () => {
+      videoRepository.findOne.mockResolvedValue(null);
+
+      await expect(videosService.findBySlug('unknown-slug')).rejects.toThrow(
+        VideoNotFoundException,
+      );
+    });
+  });
+
+  describe('getVideoDetails', () => {
+    it('returns thumbnail_url as null when the video has no thumbnail yet', async () => {
+      videoRepository.findOne.mockResolvedValue(
+        makeVideo({ status: VideoStatus.DRAFT, thumbnail_key: null }),
+      );
+
+      const result = await videosService.getVideoDetails('abc12345def');
+
+      expect(result.status).toBe(VideoStatus.DRAFT);
+      expect(result.thumbnail_url).toBeNull();
+      expect(storageService.generatePresignedGetUrl).not.toHaveBeenCalled();
+    });
+
+    it('returns a pre-signed thumbnail_url when thumbnail_key is set', async () => {
+      videoRepository.findOne.mockResolvedValue(
+        makeVideo({
+          status: VideoStatus.READY,
+          thumbnail_key: 'videos/abc12345def/thumbnail.jpg',
+        }),
+      );
+      storageService.generatePresignedGetUrl.mockResolvedValue({
+        url: 'http://minio:9000/streamtube-videos/videos/abc12345def/thumbnail.jpg?signed',
+        expiresAt: new Date(),
+      });
+
+      const result = await videosService.getVideoDetails('abc12345def');
+
+      expect(storageService.generatePresignedGetUrl).toHaveBeenCalledWith(
+        'videos/abc12345def/thumbnail.jpg',
+        3600,
+      );
+      expect(result.thumbnail_url).toBe(
+        'http://minio:9000/streamtube-videos/videos/abc12345def/thumbnail.jpg?signed',
+      );
+    });
+  });
+
+  describe('getStreamUrl', () => {
+    it('throws VideoNotReadyException when the video is not ready', async () => {
+      videoRepository.findOne.mockResolvedValue(
+        makeVideo({ status: VideoStatus.PROCESSING }),
+      );
+
+      await expect(videosService.getStreamUrl('abc12345def')).rejects.toThrow(
+        VideoNotReadyException,
+      );
+      expect(storageService.generatePresignedGetUrl).not.toHaveBeenCalled();
+    });
+
+    it('returns a pre-signed streaming URL for a ready video', async () => {
+      const video = makeVideo({ status: VideoStatus.READY });
+      videoRepository.findOne.mockResolvedValue(video);
+      const expiresAt = new Date('2026-01-01T00:00:00.000Z');
+      storageService.generatePresignedGetUrl.mockResolvedValue({
+        url: 'http://minio:9000/streamtube-videos/videos/abc12345def/original?signed',
+        expiresAt,
+      });
+
+      const result = await videosService.getStreamUrl('abc12345def');
+
+      expect(storageService.generatePresignedGetUrl).toHaveBeenCalledWith(
+        video.storage_key,
+        3600,
+      );
+      expect(result.url).toBe(
+        'http://minio:9000/streamtube-videos/videos/abc12345def/original?signed',
+      );
+      expect(result.expires_at).toBe(expiresAt.toISOString());
+    });
+  });
+
+  describe('getDownloadUrl', () => {
+    it('throws VideoNotReadyException when the video is not ready', async () => {
+      videoRepository.findOne.mockResolvedValue(
+        makeVideo({ status: VideoStatus.DRAFT }),
+      );
+
+      await expect(videosService.getDownloadUrl('abc12345def')).rejects.toThrow(
+        VideoNotReadyException,
+      );
+      expect(storageService.generatePresignedGetUrl).not.toHaveBeenCalled();
+    });
+
+    it('requests a Content-Disposition: attachment presigned URL for a ready video', async () => {
+      const video = makeVideo({ status: VideoStatus.READY, title: 'My Video' });
+      videoRepository.findOne.mockResolvedValue(video);
+      storageService.generatePresignedGetUrl.mockResolvedValue({
+        url: 'http://minio:9000/streamtube-videos/videos/abc12345def/original?signed&response-content-disposition=attachment',
+        expiresAt: new Date(),
+      });
+
+      const result = await videosService.getDownloadUrl('abc12345def');
+
+      expect(storageService.generatePresignedGetUrl).toHaveBeenCalledWith(
+        video.storage_key,
+        300,
+        'attachment; filename="My Video"',
+      );
+      expect(result.url).toContain('response-content-disposition=attachment');
     });
   });
 });

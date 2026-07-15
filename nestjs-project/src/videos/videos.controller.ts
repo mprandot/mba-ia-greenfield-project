@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Param,
@@ -15,10 +16,16 @@ import {
 } from '@nestjs/swagger';
 import type { JwtPayload } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import { ApiErrorEnvelope } from '../common/openapi/api-error-envelope.dto';
 import { CreateVideoDto } from './dto/create-video.dto';
 import { UploadCompleteDto } from './dto/upload-complete.dto';
-import { CreateDraftResult, VideosService } from './videos.service';
+import {
+  CreateDraftResult,
+  PresignedUrlResult,
+  VideoDetails,
+  VideosService,
+} from './videos.service';
 
 @ApiTags('videos')
 @Controller('videos')
@@ -105,5 +112,102 @@ export class VideosController {
     @Body() dto: UploadCompleteDto,
   ): Promise<void> {
     return this.videosService.markUploadComplete(id, user.sub, dto);
+  }
+
+  @Get(':slug/stream-url')
+  @Public()
+  @ApiOperation({
+    summary: 'Get a video streaming URL',
+    description:
+      'Returns a pre-signed GET URL pointing to the video object; MinIO/S3 handles HTTP range requests natively.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Pre-signed streaming URL',
+    schema: {
+      properties: {
+        url: { type: 'string' },
+        expires_at: { type: 'string', format: 'date-time' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Video not found',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Video is not ready for playback yet',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  async getStreamUrl(@Param('slug') slug: string): Promise<PresignedUrlResult> {
+    return this.videosService.getStreamUrl(slug);
+  }
+
+  @Get(':slug/download-url')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({
+    summary: 'Get a video download URL',
+    description:
+      'Returns a pre-signed GET URL with a Content-Disposition: attachment header for downloading the video.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Pre-signed download URL',
+    schema: {
+      properties: {
+        url: { type: 'string' },
+        expires_at: { type: 'string', format: 'date-time' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Video not found',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Video is not ready for playback yet',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  async getDownloadUrl(
+    @Param('slug') slug: string,
+  ): Promise<PresignedUrlResult> {
+    return this.videosService.getDownloadUrl(slug);
+  }
+
+  @Get(':slug')
+  @Public()
+  @ApiOperation({
+    summary: 'Get video details',
+    description:
+      'Returns video metadata, including a pre-signed thumbnail URL when available.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Video details',
+    schema: {
+      properties: {
+        id: { type: 'string', format: 'uuid' },
+        slug: { type: 'string' },
+        title: { type: 'string' },
+        status: { type: 'string' },
+        channel_id: { type: 'string', format: 'uuid' },
+        duration_seconds: { type: 'integer', nullable: true },
+        thumbnail_url: { type: 'string', nullable: true },
+        created_at: { type: 'string', format: 'date-time' },
+        updated_at: { type: 'string', format: 'date-time' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Video not found',
+    schema: { $ref: getSchemaPath(ApiErrorEnvelope) },
+  })
+  async findOne(@Param('slug') slug: string): Promise<VideoDetails> {
+    return this.videosService.getVideoDetails(slug);
   }
 }
